@@ -326,7 +326,7 @@ npm run dev
 | Role | Name |
 |---|---|
 | Frontend | Trushi ([@trushi-jasani](https://github.com/trushi-jasani)) |
-| Backend & AI | ([@parita-31]([ht](https://github.com/parita-31))|
+| Backend & AI | ([@parita-31](https://github.com/parita-31))|
 
 Built for a 24-hour hackathon: **PS-9 — Intelligent Emergency Response & Resource Coordination Platform**.
 
