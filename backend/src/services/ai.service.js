@@ -146,4 +146,4 @@ async function classify(reportText) {
   }
 }
 
-module.exports = { classify, classificationSchema, deterministicClassify };
+module.exports = { classify, classificationSchema, deterministicClassify, TYPE_TO_RESOURCES };

@@ -9,5 +9,6 @@ router.post('/', controller.create);
 router.get('/:id', controller.getOne);
 router.patch('/:id', controller.update);
 router.get('/:id/reports', reportsController.listForIncident);
+router.post('/:id/analyze', controller.analyze);
 
 module.exports = router;

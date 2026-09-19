@@ -1,4 +1,8 @@
 const incidentModel = require('../models/incident.model');
+const reportModel = require('../models/report.model');
+const aiAnalysisModel = require('../models/aiAnalysis.model');
+const aiService = require('../services/ai.service');
+const { runIncidentScoring } = require('../services/incidentPipeline.service');
 const { logActivity } = require('../models/activityLog.model');
 const { emitEvent } = require('../config/socket');
 const ApiError = require('../utils/ApiError');
@@ -59,4 +63,63 @@ async function update(req, res) {
   res.json({ success: true, data: updated });
 }
 
-module.exports = { create, list, getOne, update };
+module.exports = { create, list, getOne, update, analyze };
+
+/**
+ * POST /api/incidents/:id/analyze
+ * Runs AI classification (Gemini, or deterministic fallback) over the
+ * incident's description + all attached report messages, and persists the
+ * result. Never throws on AI failure - falls back automatically.
+ */
+async function analyze(req, res) {
+  const incident = await incidentModel.getIncidentById(req.params.id);
+  if (!incident) throw ApiError.notFound('Incident not found');
+
+  const reports = await reportModel.listReportsForIncident(incident.id);
+  const combinedText = [
+    incident.title,
+    incident.description || '',
+    ...reports.map((r) => r.message),
+  ].filter(Boolean).join('\n');
+
+  if (!combinedText.trim()) {
+    throw ApiError.badRequest('Incident has no description or reports to analyze');
+  }
+
+  const { result, usedFallback, rawResponse, model } = await aiService.classify(combinedText);
+
+  await aiAnalysisModel.saveAnalysis({
+    incidentId: incident.id,
+    reportId: null,
+    inputText: combinedText,
+    rawResponse,
+    parsedOutput: result,
+    model,
+    usedFallback,
+    confidence: result.confidence,
+  });
+
+  const updated = await incidentModel.updateIncident(incident.id, {
+    type: result.incidentType,
+    people_at_risk: Math.max(incident.people_at_risk || 0, result.peopleAtRisk),
+    confidence_score: result.confidence,
+  });
+
+  await logActivity({
+    incidentId: incident.id,
+    action: 'INCIDENT_CLASSIFIED',
+    details: {
+      incidentType: result.incidentType,
+      urgency: result.urgency,
+      usedFallback,
+      confidence: result.confidence,
+    },
+  });
+
+  const withSeverity = await runIncidentScoring(incident.id);
+
+  res.json({
+    success: true,
+    data: { ...withSeverity, ai_analysis: { ...result, usedFallback } },
+  });
+}
