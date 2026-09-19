@@ -52,7 +52,35 @@ async function runSeverityScoring(incidentId) {
   return updated;
 }
 
-module.exports = { runSeverityScoring, runPriorityScoring, runIncidentScoring };
+module.exports = { runSeverityScoring, runPriorityScoring, runIncidentScoring, getNeededResourceTypes, getLatestAnalysis };
+
+/**
+ * Most recent ai_analyses row for an incident, or null.
+ * @param {string} incidentId
+ */
+async function getLatestAnalysis(incidentId) {
+  const analyses = await aiAnalysisModel.listForIncident(incidentId);
+  return analyses[0] || null;
+}
+
+/**
+ * The resource types this incident needs: prefers the most recent AI
+ * classification's resourceTypes, falling back to the static type->resources
+ * mapping when no classification exists yet. Shared by priority scoring and
+ * the resource recommendation engine so they never disagree.
+ *
+ * @param {object} incident
+ * @param {object|null} [latestAnalysis]
+ * @returns {Promise<string[]>}
+ */
+async function getNeededResourceTypes(incident, latestAnalysis) {
+  const analysis = latestAnalysis !== undefined ? latestAnalysis : await getLatestAnalysis(incident.id);
+  const parsed = analysis && analysis.parsed_output ? analysis.parsed_output : null;
+  if (parsed && Array.isArray(parsed.resourceTypes) && parsed.resourceTypes.length > 0) {
+    return parsed.resourceTypes;
+  }
+  return aiService.TYPE_TO_RESOURCES[incident.type] || [];
+}
 
 /**
  * Recomputes and persists priority for an incident. Builds on the incident's
@@ -67,12 +95,8 @@ async function runPriorityScoring(incidentId) {
   const incident = await incidentModel.getIncidentById(incidentId);
   if (!incident) throw new Error(`runPriorityScoring: incident ${incidentId} not found`);
 
-  const analyses = await aiAnalysisModel.listForIncident(incidentId);
-  const latestAnalysis = analyses[0] || null;
-  const parsed = latestAnalysis && latestAnalysis.parsed_output ? latestAnalysis.parsed_output : null;
-  const neededResourceTypes = (parsed && Array.isArray(parsed.resourceTypes) && parsed.resourceTypes.length > 0)
-    ? parsed.resourceTypes
-    : (aiService.TYPE_TO_RESOURCES[incident.type] || []);
+  const latestAnalysis = await getLatestAnalysis(incidentId);
+  const neededResourceTypes = await getNeededResourceTypes(incident, latestAnalysis);
 
   const availableResourceCount = await resourceModel.countAvailableByTypes(neededResourceTypes);
 
@@ -104,7 +128,7 @@ async function runPriorityScoring(incidentId) {
  * the freshly-computed severity), returning the final incident. This is what
  * report-ingestion and /analyze should call.
  */
-async function runSeverityScoring(incidentId) {
+async function runIncidentScoring(incidentId) {
   await runSeverityScoring(incidentId);
   return runPriorityScoring(incidentId);
 }

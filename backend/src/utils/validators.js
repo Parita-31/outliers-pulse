@@ -85,6 +85,29 @@ const updateResourceStatusSchema = z.object({
   current_incident_id: z.string().uuid().nullable().optional(),
 });
 
+const mergeIncidentSchema = z.object({
+  target_incident_id: z.string().uuid(),
+});
+
+const createAssignmentSchema = z.object({
+  incident_id: z.string().uuid(),
+  resource_id: z.string().uuid(),
+});
+
+const approveAssignmentSchema = z.object({
+  approved_by: z.string().uuid().optional(),
+});
+
+const simulateResourceFailureSchema = z.object({
+  resource_id: z.string().uuid(),
+});
+
+const recoverSchema = z.object({
+  assignment_id: z.string().uuid(),
+  new_resource_id: z.string().uuid(),
+  approved_by: z.string().uuid().optional(),
+});
+
 module.exports = {
   INCIDENT_TYPES,
   INCIDENT_STATUSES,
@@ -99,4 +122,9 @@ module.exports = {
   createReportSchema,
   createResourceSchema,
   updateResourceStatusSchema,
+  mergeIncidentSchema,
+  createAssignmentSchema,
+  approveAssignmentSchema,
+  simulateResourceFailureSchema,
+  recoverSchema,
 };

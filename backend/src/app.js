@@ -48,7 +48,7 @@ app.get('/', (req, res) => {
 app.use('/api/incidents', require('./routes/incidents.routes'));
 app.use('/api/reports', require('./routes/reports.routes'));
 app.use('/api/resources', require('./routes/resources.routes'));
-// app.use('/api/assignments', require('./routes/assignments.routes'));
+app.use('/api/assignments', require('./routes/assignments.routes'));
 // app.use('/api/alerts', require('./routes/alerts.routes'));
 // app.use('/api/analytics', require('./routes/analytics.routes'));
 

@@ -2,6 +2,8 @@ const reportModel = require('../models/report.model');
 const incidentModel = require('../models/incident.model');
 const aiAnalysisModel = require('../models/aiAnalysis.model');
 const aiService = require('../services/ai.service');
+const duplicateDetection = require('../services/duplicateDetection.service');
+const env = require('../config/env');
 const { runIncidentScoring } = require('../services/incidentPipeline.service');
 const { logActivity } = require('../models/activityLog.model');
 const { emitEvent } = require('../config/socket');
@@ -12,11 +14,10 @@ const { createReportSchema } = require('../utils/validators');
  * POST /api/reports
  *
  * - If incident_id is given: stores the report attached to that incident (Stage 3 behavior).
- * - If incident_id is omitted (Stage 5): runs AI classification (Gemini or deterministic
- *   fallback) on the report message, creates a new incident from the result, and attaches
- *   the report to it. NOTE: this always creates a new incident for now - Stage 8 inserts a
- *   duplicate-detection check here so a report can attach to an existing related incident
- *   instead of always creating a new one.
+ * - If incident_id is omitted: runs AI classification (Stage 5), then duplicate detection
+ *   (Stage 8) against recent active incidents. If a strong match is found, the report is
+ *   attached to that existing incident instead of spawning a duplicate. Otherwise a new
+ *   incident is created from the classification result, as before.
  */
 async function create(req, res) {
   const data = createReportSchema.parse(req.body);
@@ -37,11 +38,11 @@ async function create(req, res) {
     return res.status(201).json({ success: true, data: report });
   }
 
-  // No incident_id -> classify and auto-create an incident.
-  // Incidents require a location, so we need one here if we're the one creating it.
+  // No incident_id -> classify, then check for a duplicate before creating a new incident.
+  // Incidents require a location, so we need one here if we might end up creating one.
   if (data.latitude === undefined || data.longitude === undefined) {
     throw ApiError.badRequest(
-      'latitude and longitude are required when incident_id is omitted (needed to create the incident)'
+      'latitude and longitude are required when incident_id is omitted (needed to create/match an incident)'
     );
   }
 
@@ -55,18 +56,62 @@ async function create(req, res) {
 
   const { result, usedFallback, rawResponse, model } = await aiService.classify(report.message);
 
-  const incident = await incidentModel.createIncident({
-    title: result.summary.length > 100 ? `${result.summary.slice(0, 97)}...` : result.summary,
-    type: result.incidentType,
-    description: report.message,
-    latitude: report.latitude,
-    longitude: report.longitude,
-    people_at_risk: result.peopleAtRisk,
-    status: 'REPORTED',
-  });
+  // Search a wider window than the scoring time-window so a same-type, nearby, textually
+  // similar incident just outside the "recent" bucket can still be found (it will simply
+  // score 0 on the time-proximity factor rather than being excluded outright).
+  const candidateWindow = env.DUPLICATE_TIME_WINDOW_MIN * 4;
+  const candidates = await incidentModel.listActiveIncidentsSince(candidateWindow);
+  const match = duplicateDetection.findBestMatch(
+    {
+      type: result.incidentType,
+      message: report.message,
+      latitude: report.latitude,
+      longitude: report.longitude,
+      timestamp: report.timestamp,
+    },
+    candidates
+  );
 
-  await incidentModel.updateIncident(incident.id, { confidence_score: result.confidence });
-  const attachedReport = await reportModel.attachReportToIncident(report.id, incident.id);
+  let incident;
+  let isDuplicate = false;
+
+  if (match) {
+    isDuplicate = true;
+    incident = match.incident;
+    await reportModel.attachReportToIncident(report.id, incident.id);
+    await incidentModel.updateIncident(incident.id, {
+      people_at_risk: Math.max(incident.people_at_risk || 0, result.peopleAtRisk),
+    });
+    await logActivity({
+      incidentId: incident.id,
+      action: 'REPORT_RECEIVED',
+      details: {
+        note: 'Attached via duplicate detection instead of creating a new incident',
+        relatednessScore: match.score,
+        reasons: match.reasons,
+        reportId: report.id,
+      },
+    });
+  } else {
+    incident = await incidentModel.createIncident({
+      title: result.summary.length > 100 ? `${result.summary.slice(0, 97)}...` : result.summary,
+      type: result.incidentType,
+      description: report.message,
+      latitude: report.latitude,
+      longitude: report.longitude,
+      people_at_risk: result.peopleAtRisk,
+      status: 'REPORTED',
+    });
+    await incidentModel.updateIncident(incident.id, { confidence_score: result.confidence });
+    await reportModel.attachReportToIncident(report.id, incident.id);
+    await logActivity({
+      incidentId: incident.id,
+      action: 'INCIDENT_CREATED',
+      details: { title: incident.title, type: incident.type, source: 'ai_classification' },
+    });
+  }
+
+  const attachedReport = await reportModel.getReportById(report.id);
 
   await aiAnalysisModel.saveAnalysis({
     incidentId: incident.id,
@@ -81,17 +126,12 @@ async function create(req, res) {
 
   await logActivity({
     incidentId: incident.id,
-    action: 'INCIDENT_CREATED',
-    details: { title: incident.title, type: incident.type, source: 'ai_classification' },
-  });
-  await logActivity({
-    incidentId: incident.id,
     action: 'INCIDENT_CLASSIFIED',
     details: { incidentType: result.incidentType, urgency: result.urgency, usedFallback },
   });
 
   const finalIncident = await runIncidentScoring(incident.id);
-  emitEvent('incident:created', finalIncident);
+  emitEvent(isDuplicate ? 'incident:updated' : 'incident:created', finalIncident);
 
   return res.status(201).json({
     success: true,
@@ -99,6 +139,9 @@ async function create(req, res) {
       ...attachedReport,
       ai_analysis: { ...result, usedFallback },
       incident: finalIncident,
+      duplicate_detection: isDuplicate
+        ? { matched: true, score: match.score, reasons: match.reasons }
+        : { matched: false },
     },
   });
 }

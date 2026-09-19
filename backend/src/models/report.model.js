@@ -55,6 +55,8 @@ async function findNearbyRecentReports({ latitude, longitude, sinceMinutes, excl
   return rows;
 }
 
+
+
 module.exports = {
   createReport,
   getReportById,

@@ -27,6 +27,15 @@ const env = {
     10
   ),
 
+  RESOURCE_SEARCH_RADIUS_METERS: parseInt(
+    process.env.RESOURCE_SEARCH_RADIUS_METERS || '20000',
+    10
+  ),
+  AVERAGE_RESPONSE_SPEED_KMH: parseInt(
+    process.env.AVERAGE_RESPONSE_SPEED_KMH || '40',
+    10
+  ),
+
   IS_PROD: process.env.NODE_ENV === 'production',
 };
 

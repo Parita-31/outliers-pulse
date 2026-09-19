@@ -56,7 +56,7 @@ async function listIncidents({
   page = 1,
   limit = 20,
   sort = '-created_at',
-}) {
+} = {}) {
   const conditions = [];
   const params = [];
 
@@ -186,9 +186,27 @@ async function updateIncident(id, fields) {
   return rows[0] || null;
 }
 
+async function listActiveIncidentsSince(sinceMinutes) {
+  const { rows } = await query(
+    `SELECT *
+     FROM incidents
+     WHERE status NOT IN (
+       'RESOLVED'::incident_status,
+       'CLOSED'::incident_status,
+       'MERGED'::incident_status
+     )
+     AND created_at >= now() - ($1 || ' minutes')::interval
+     ORDER BY created_at DESC`,
+    [sinceMinutes]
+  );
+
+  return rows;
+}
+
 module.exports = {
   createIncident,
   getIncidentById,
   listIncidents,
   updateIncident,
+  listActiveIncidentsSince,
 };

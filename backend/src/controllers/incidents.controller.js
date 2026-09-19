@@ -3,10 +3,15 @@ const reportModel = require('../models/report.model');
 const aiAnalysisModel = require('../models/aiAnalysis.model');
 const aiService = require('../services/ai.service');
 const { runIncidentScoring } = require('../services/incidentPipeline.service');
+const { mergeIncidents } = require('../services/merge.service');
+const { simulateResourceFailure, recoverAssignment } = require('../services/dynamicrecovery.service');
 const { logActivity } = require('../models/activityLog.model');
 const { emitEvent } = require('../config/socket');
 const ApiError = require('../utils/ApiError');
-const { createIncidentSchema, updateIncidentSchema, listIncidentsQuerySchema } = require('../utils/validators');
+const {
+  createIncidentSchema, updateIncidentSchema, listIncidentsQuerySchema, mergeIncidentSchema,
+  simulateResourceFailureSchema, recoverSchema,
+} = require('../utils/validators');
 
 async function create(req, res) {
   const data = createIncidentSchema.parse(req.body);
@@ -63,7 +68,35 @@ async function update(req, res) {
   res.json({ success: true, data: updated });
 }
 
-module.exports = { create, list, getOne, update, analyze };
+module.exports = { create, list, getOne, update, analyze, merge, simulateFailure, recover };
+
+/**
+ * POST /api/incidents/:id/merge
+ * Merges :id (source) into body.target_incident_id.
+ */
+async function merge(req, res) {
+  const { target_incident_id } = mergeIncidentSchema.parse(req.body);
+  const result = await mergeIncidents(req.params.id, target_incident_id);
+  res.json({ success: true, data: result });
+}
+
+/**
+ * POST /api/incidents/:id/simulate-resource-failure
+ */
+async function simulateFailure(req, res) {
+  const { resource_id } = simulateResourceFailureSchema.parse(req.body);
+  const result = await simulateResourceFailure(req.params.id, resource_id);
+  res.json({ success: true, data: result });
+}
+
+/**
+ * POST /api/incidents/:id/recover
+ */
+async function recover(req, res) {
+  const { assignment_id, new_resource_id, approved_by } = recoverSchema.parse(req.body);
+  const result = await recoverAssignment(req.params.id, assignment_id, new_resource_id, approved_by);
+  res.json({ success: true, data: result });
+}
 
 /**
  * POST /api/incidents/:id/analyze

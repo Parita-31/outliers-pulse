@@ -25,24 +25,38 @@ async function getOne(req, res) {
 
 async function updateStatus(req, res) {
   const data = updateResourceStatusSchema.parse(req.body);
-  const existing = await resourceModel.getResourceById(req.params.id);
-  if (!existing) throw ApiError.notFound('Resource not found');
 
-  const updated = await resourceModel.updateResourceStatus(req.params.id, data);
+  const existing = await resourceModel.getResourceById(req.params.id);
+
+  if (!existing) {
+    throw ApiError.notFound('Resource not found');
+  }
+
+  const updated = await resourceModel.updateResourceStatus(
+    req.params.id,
+    data.status
+  );
 
   // Only log a semantic RESOURCE_ASSIGNED event when the resource is actually
-  // being tied to an incident here (e.g. a manual status override). The real
-  // assignment activity log entry for the approval flow is written in Stage 10.
+  // being tied to an incident here (e.g. a manual status override).
   if (data.status === 'ASSIGNED' && existing.status !== 'ASSIGNED') {
     await logActivity({
       incidentId: updated.current_incident_id,
       action: 'RESOURCE_ASSIGNED',
-      details: { resourceId: updated.id, resourceName: updated.name, fromStatus: existing.status },
+      details: {
+        resourceId: updated.id,
+        resourceName: updated.name,
+        fromStatus: existing.status,
+      },
     });
   }
 
   emitEvent('resource:updated', updated);
-  res.json({ success: true, data: updated });
+
+  res.json({
+    success: true,
+    data: updated,
+  });
 }
 
 module.exports = { create, list, getOne, updateStatus };
