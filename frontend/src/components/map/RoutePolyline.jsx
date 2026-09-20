@@ -23,12 +23,13 @@ export default function RoutePolyline({
         color: color,
         weight: 3.5,
         opacity: 0.85,
+        dashArray: '8, 12',
         className: 'tactical-route-active',
       }}
     >
       <Tooltip sticky className="c2-route-tooltip">
         <div className="font-mono text-[10px] text-c2-text font-bold">
-          {label}: {fromResource.id} ➔ #{toIncident.id}
+          {label}: {fromResource.name || fromResource.id} ➔ #{toIncident.id}
         </div>
       </Tooltip>
     </Polyline>

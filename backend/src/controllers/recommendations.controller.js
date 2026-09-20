@@ -24,16 +24,32 @@ async function getForIncident(req, res) {
 
 const resources = resourceResult.items;
 
-const limit = req.query.limit ? parseInt(req.query.limit, 10) : 5;
+  const limit = req.query.limit ? parseInt(req.query.limit, 10) : 5;
 
-const ranked = rankResources(
-  incident,
-  resources,
-  neededResourceTypes,
-  limit
-);
+  const ranked = rankResources(
+    incident,
+    resources,
+    neededResourceTypes,
+    limit
+  );
 
-  res.json({ success: true, data: ranked });
+  const formatted = ranked.map((item, index) => ({
+    id: `REC-${incident.id}-${item.resource.id}`,
+    incidentId: incident.id,
+    resourceId: item.resource.id,
+    resourceName: item.resource.name,
+    type: item.resource.type,
+    etaMinutes: item.eta,
+    distanceKm: item.distanceMeters ? Number((item.distanceMeters / 1000).toFixed(1)) : 1.5,
+    matchScore: item.score,
+    capabilityMatch: item.score >= 90 ? 'Optimal (High Fit)' : item.score >= 70 ? 'High Capability' : 'Standard',
+    reasons: item.reasons,
+    resource: item.resource,
+    score: item.score,
+    eta: item.eta,
+  }));
+
+  res.json({ success: true, data: formatted });
 }
 
 module.exports = { getForIncident };

@@ -13,8 +13,8 @@ async function create(req, res) {
 
 async function list(req, res) {
   const { status, type } = req.query;
-  const resources = await resourceModel.listResources({ status, type });
-  res.json({ success: true, data: resources });
+  const result = await resourceModel.listResources({ status, type });
+  res.json({ success: true, data: result.items });
 }
 
 async function getOne(req, res) {

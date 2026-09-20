@@ -6,7 +6,6 @@ import RoutePolyline from './RoutePolyline';
 import MapControls from './MapControls';
 import { useIncidents } from '../../hooks/useIncidents';
 import { useResources } from '../../hooks/useResources';
-import L from 'leaflet';
 
 const MAP_TILE_URL = 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png';
 const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
@@ -34,7 +33,7 @@ export default function EmergencyMap() {
   const [showResources, setShowResources] = useState(true);
   const [showRoutes, setShowRoutes] = useState(true);
 
-  // Active Dispatches (for Route Polyline rendering)
+  // Active Dispatches (for Route Polyline rendering fallback)
   const fireUnit = resources.find((r) => r.id === 'FIRE-03');
   const hazmatIncident = incidents.find((i) => i.id === 'INC-105');
 
@@ -83,38 +82,69 @@ export default function EmergencyMap() {
             <ResourceMarker key={res.id} resource={res} />
           ))}
 
-        {/* Dynamic Route Polylines */}
+        {/* Dynamic Route Polylines (Dotted Lines for Assigned Vehicles) */}
         {showRoutes && (
           <>
-            {/* Fire 03 Route to Hazmat */}
-            {fireUnit && hazmatIncident && (
-              <RoutePolyline
-                fromResource={fireUnit}
-                toIncident={hazmatIncident}
-                color="#ea580c"
-                label="DISPATCHED"
-              />
-            )}
+            {/* 1. Dynamic Dispatches across all resources */}
+            {resources.map((res) => {
+              const assignedIncId = res.assignedIncidentId || res.current_incident_id;
+              if (
+                !assignedIncId ||
+                (res.status !== 'ASSIGNED' && res.status !== 'EN_ROUTE' && res.status !== 'DISPATCHED')
+              ) {
+                return null;
+              }
+              const targetInc = incidents.find((i) => i.id === assignedIncId);
+              if (!targetInc) return null;
+              const isRecovery =
+                res.status === 'FAILED' ||
+                compromisedPlans[assignedIncId]?.failedResourceId === res.id;
+              return (
+                <RoutePolyline
+                  key={`route-${res.id}-${targetInc.id}`}
+                  fromResource={res}
+                  toIncident={targetInc}
+                  color={isRecovery ? '#dc2626' : '#2563eb'}
+                  label={isRecovery ? 'REASSIGNED RECOVERY' : 'DISPATCHED'}
+                />
+              );
+            })}
 
-            {/* Ambulance Active Route */}
-            {!isAmb07Failed && amb07?.status === 'DISPATCHED' && floodIncident && (
-              <RoutePolyline
-                fromResource={amb07}
-                toIncident={floodIncident}
-                color="#2563eb"
-                label="EN ROUTE (ETA: 6m)"
-              />
-            )}
+            {/* 2. Fallback Demo Scenario Polylines */}
+            {fireUnit &&
+              hazmatIncident &&
+              fireUnit.status === 'DISPATCHED' &&
+              !resources.some((r) => (r.assignedIncidentId || r.current_incident_id) === hazmatIncident.id) && (
+                <RoutePolyline
+                  fromResource={fireUnit}
+                  toIncident={hazmatIncident}
+                  color="#ea580c"
+                  label="DISPATCHED"
+                />
+              )}
 
-            {/* Recovery Route for AMB-12 */}
-            {isAmb12Dispatched && floodIncident && (
-              <RoutePolyline
-                fromResource={amb12}
-                toIncident={floodIncident}
-                color="#dc2626"
-                label="REASSIGNED RECOVERY (ETA: 9m)"
-              />
-            )}
+            {!isAmb07Failed &&
+              amb07?.status === 'DISPATCHED' &&
+              floodIncident &&
+              !resources.some((r) => (r.assignedIncidentId || r.current_incident_id) === floodIncident.id) && (
+                <RoutePolyline
+                  fromResource={amb07}
+                  toIncident={floodIncident}
+                  color="#2563eb"
+                  label="EN ROUTE (ETA: 6m)"
+                />
+              )}
+
+            {isAmb12Dispatched &&
+              floodIncident &&
+              !resources.some((r) => r.id === amb12.id && (r.assignedIncidentId || r.current_incident_id)) && (
+                <RoutePolyline
+                  fromResource={amb12}
+                  toIncident={floodIncident}
+                  color="#dc2626"
+                  label="REASSIGNED RECOVERY (ETA: 9m)"
+                />
+              )}
           </>
         )}
 

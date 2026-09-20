@@ -1,5 +1,24 @@
 const { query } = require('../config/db');
 
+function normalizeResource(res) {
+  if (!res) return null;
+  const lat = res.latitude !== undefined ? Number(res.latitude) : 22.6880;
+  const lng = res.longitude !== undefined ? Number(res.longitude) : 72.8590;
+
+  let caps = Array.isArray(res.capability) ? res.capability : [];
+
+  return {
+    ...res,
+    lat,
+    lng,
+    capabilities: res.capabilities || caps,
+    speedKmH: res.speedKmH ?? (res.status === 'ASSIGNED' || res.status === 'EN_ROUTE' ? 45 : 0),
+    baseStation: res.baseStation || 'Central EOC',
+    workload: typeof res.workload === 'number' ? `${res.workload}%` : res.workload || '0 Active Tasks (Ready)',
+    assignedIncidentId: res.current_incident_id,
+  };
+}
+
 async function createResource({
   name,
   type,
@@ -50,7 +69,7 @@ async function createResource({
     ]
   );
 
-  return rows[0];
+  return normalizeResource(rows[0]);
 }
 
 async function getResourceById(id) {
@@ -59,8 +78,9 @@ async function getResourceById(id) {
     [id]
   );
 
-  return rows[0] || null;
+  return normalizeResource(rows[0]);
 }
+
 
 async function listResources({
   type,
@@ -115,7 +135,7 @@ async function listResources({
   );
 
   return {
-    items: rows,
+    items: rows.map(normalizeResource),
     total: countRows[0].total,
     page,
     limit,
@@ -176,7 +196,7 @@ async function updateResource(id, fields) {
     params
   );
 
-  return rows[0] || null;
+  return normalizeResource(rows[0]);
 }
 
 /**
@@ -191,6 +211,9 @@ async function updateResource(id, fields) {
  * 'UNAVAILABLE'
  */
 async function updateResourceStatus(id, status) {
+  if (typeof status === 'object' && status !== null) {
+    return updateResource(id, status);
+  }
   const { rows } = await query(
     `UPDATE resources
      SET status = $1::resource_status,
@@ -199,9 +222,9 @@ async function updateResourceStatus(id, status) {
      RETURNING *`,
     [status, id]
   );
-
-  return rows[0] || null;
+  return normalizeResource(rows[0]);
 }
+
 
 async function countAvailableByTypes(types = []) {
   if (!Array.isArray(types) || types.length === 0) {

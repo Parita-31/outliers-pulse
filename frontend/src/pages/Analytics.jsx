@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Header from '../components/layout/Header';
 import StatCard from '../components/common/StatCard';
 import { 
@@ -14,8 +14,9 @@ import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
+import { analyticsApi } from '../services/api/analyticsApi';
 
-const TIMELINE_DATA = [
+const DEFAULT_TIMELINE = [
   { time: '00:00', critical: 1, high: 2, medium: 4 },
   { time: '04:00', critical: 0, high: 1, medium: 3 },
   { time: '08:00', critical: 3, high: 5, medium: 8 },
@@ -24,7 +25,7 @@ const TIMELINE_DATA = [
   { time: '20:00', critical: 2, high: 3, medium: 5 },
 ];
 
-const RESPONSE_TIME_DATA = [
+const DEFAULT_RESPONSE_TIMES = [
   { unit: 'Ambulance (ALS)', target: 8, actual: 6.2 },
   { unit: 'Fire Rescue', target: 7, actual: 5.8 },
   { unit: 'Swiftwater Team', target: 12, actual: 9.4 },
@@ -33,6 +34,36 @@ const RESPONSE_TIME_DATA = [
 ];
 
 export default function Analytics() {
+  const [stats, setStats] = useState(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    async function fetchStats() {
+      try {
+        const res = await analyticsApi.getStats();
+        if (isMounted && res.success) {
+          setStats(res.data);
+        }
+      } catch (err) {
+        console.error('Failed to load analytics:', err);
+      }
+    }
+    fetchStats();
+    return () => { isMounted = false; };
+  }, []);
+
+  const totalIncidents = stats?.total_incidents ?? stats?.summary?.totalIncidents ?? 100;
+  const criticalIncidents = stats?.critical_incidents ?? stats?.summary?.criticalIncidents ?? 14;
+
+  let avgResponseTime = '1.8';
+  if (stats?.avg_response_time_minutes != null) {
+    avgResponseTime = String(stats.avg_response_time_minutes);
+  } else if (stats?.summary?.meanTimeToDispatchSeconds != null) {
+    avgResponseTime = (stats.summary.meanTimeToDispatchSeconds / 60).toFixed(1);
+  }
+
+  const fleetUtilization = stats?.resource_utilization_pct ?? stats?.summary?.fleetUtilizationPercentage ?? 75;
+
   return (
     <div className="flex flex-col h-screen w-screen bg-c2-paper text-c2-text overflow-hidden font-sans">
       <Header />
@@ -60,29 +91,29 @@ export default function Analytics() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <StatCard 
             label="Total Incidents (24h)" 
-            value="100" 
+            value={String(totalIncidents)} 
             subValue="+12% vs avg" 
             icon={Layers} 
             variant="default" 
           />
           <StatCard 
             label="Mean Time to Dispatch" 
-            value="1.8 min" 
+            value={`${avgResponseTime} min`} 
             subValue="-45s AI optimization" 
             icon={Clock} 
             variant="success" 
           />
           <StatCard 
             label="Critical Incidents" 
-            value="14" 
+            value={String(criticalIncidents)} 
             subValue="100% responded" 
             icon={ShieldAlert} 
             variant="critical" 
           />
           <StatCard 
             label="Fleet Utilization" 
-            value="75%" 
-            subValue="18 of 24 units active" 
+            value={`${fleetUtilization}%`} 
+            subValue="Real-time operational load" 
             icon={Activity} 
             variant="ai" 
           />
@@ -98,7 +129,7 @@ export default function Analytics() {
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={TIMELINE_DATA}>
+                <AreaChart data={stats?.timelineVolume || DEFAULT_TIMELINE}>
                   <defs>
                     <linearGradient id="critGrad" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="5%" stopColor="#dc2626" stopOpacity={0.3}/>
@@ -131,7 +162,7 @@ export default function Analytics() {
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={RESPONSE_TIME_DATA} layout="vertical">
+                <BarChart data={stats?.responseTimesByUnit || DEFAULT_RESPONSE_TIMES} layout="vertical">
                   <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
                   <XAxis type="number" stroke="#64748b" fontSize={11} fontFamily="monospace" />
                   <YAxis dataKey="unit" type="category" stroke="#475569" fontSize={11} width={110} />

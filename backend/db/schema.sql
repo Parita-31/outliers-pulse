@@ -84,7 +84,7 @@ EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 -- USERS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS users (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name          TEXT NOT NULL,
   email         TEXT NOT NULL UNIQUE,
   role          user_role NOT NULL DEFAULT 'dispatcher',
@@ -97,7 +97,7 @@ CREATE TABLE IF NOT EXISTS users (
 -- INCIDENTS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS incidents (
-  id                      UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                      TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   title                   TEXT NOT NULL,
   type                    incident_type NOT NULL DEFAULT 'other',
   description             TEXT,
@@ -111,8 +111,8 @@ CREATE TABLE IF NOT EXISTS incidents (
   confidence_score        NUMERIC(5,2) CHECK (confidence_score BETWEEN 0 AND 100),
   people_at_risk          INTEGER NOT NULL DEFAULT 0,
   status                  incident_status NOT NULL DEFAULT 'REPORTED',
-  merged_into_incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
-  created_by              UUID REFERENCES users(id) ON DELETE SET NULL,
+  merged_into_incident_id TEXT REFERENCES incidents(id) ON DELETE SET NULL,
+  created_by              TEXT REFERENCES users(id) ON DELETE SET NULL,
   created_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at              TIMESTAMPTZ NOT NULL DEFAULT now(),
   resolved_at             TIMESTAMPTZ
@@ -128,8 +128,8 @@ CREATE INDEX IF NOT EXISTS idx_incidents_location ON incidents(latitude, longitu
 -- REPORTS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS reports (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  incident_id       UUID REFERENCES incidents(id) ON DELETE SET NULL,
+  id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  incident_id       TEXT REFERENCES incidents(id) ON DELETE SET NULL,
   source            report_source NOT NULL,
   message           TEXT NOT NULL,
   latitude          DOUBLE PRECISION,
@@ -151,7 +151,7 @@ CREATE INDEX IF NOT EXISTS idx_reports_location ON reports(latitude, longitude);
 -- RESOURCES
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS resources (
-  id                  UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id                  TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name                TEXT NOT NULL,
   type                resource_type NOT NULL,
   capability          JSONB DEFAULT '[]'::jsonb,
@@ -160,7 +160,7 @@ CREATE TABLE IF NOT EXISTS resources (
   status              resource_status NOT NULL DEFAULT 'AVAILABLE',
   workload            INTEGER NOT NULL DEFAULT 0 CHECK (workload BETWEEN 0 AND 100),
   eta                 INTEGER,
-  current_incident_id UUID REFERENCES incidents(id) ON DELETE SET NULL,
+  current_incident_id TEXT REFERENCES incidents(id) ON DELETE SET NULL,
   created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at          TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -174,7 +174,7 @@ CREATE INDEX IF NOT EXISTS idx_resources_current_incident ON resources(current_i
 -- HOSPITALS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS hospitals (
-  id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id               TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name             TEXT NOT NULL,
   latitude         DOUBLE PRECISION NOT NULL,
   longitude        DOUBLE PRECISION NOT NULL,
@@ -192,15 +192,15 @@ CREATE INDEX IF NOT EXISTS idx_hospitals_location ON hospitals(latitude, longitu
 -- ASSIGNMENTS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS assignments (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  incident_id           UUID NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
-  resource_id           UUID NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
+  id                    TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  incident_id           TEXT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+  resource_id           TEXT NOT NULL REFERENCES resources(id) ON DELETE CASCADE,
   status                assignment_status NOT NULL DEFAULT 'PENDING_APPROVAL',
   recommended_score     NUMERIC(5,2),
   recommended_reasons   JSONB DEFAULT '[]'::jsonb,
   eta                   INTEGER,
-  replaced_assignment_id UUID REFERENCES assignments(id) ON DELETE SET NULL,
-  approved_by           UUID REFERENCES users(id) ON DELETE SET NULL,
+  replaced_assignment_id TEXT REFERENCES assignments(id) ON DELETE SET NULL,
+  approved_by           TEXT REFERENCES users(id) ON DELETE SET NULL,
   approved_at           TIMESTAMPTZ,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at            TIMESTAMPTZ NOT NULL DEFAULT now()
@@ -214,14 +214,14 @@ CREATE INDEX IF NOT EXISTS idx_assignments_status ON assignments(status);
 -- ALERTS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS alerts (
-  id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  incident_id       UUID REFERENCES incidents(id) ON DELETE CASCADE,
+  id                TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  incident_id       TEXT REFERENCES incidents(id) ON DELETE CASCADE,
   type              alert_type NOT NULL,
   severity          severity_level NOT NULL DEFAULT 'MODERATE',
   message           TEXT NOT NULL,
   metadata          JSONB DEFAULT '{}'::jsonb,
   acknowledged      BOOLEAN NOT NULL DEFAULT false,
-  acknowledged_by   UUID REFERENCES users(id) ON DELETE SET NULL,
+  acknowledged_by   TEXT REFERENCES users(id) ON DELETE SET NULL,
   acknowledged_at   TIMESTAMPTZ,
   created_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -235,12 +235,12 @@ CREATE INDEX IF NOT EXISTS idx_alerts_created_at ON alerts(created_at);
 -- NOTIFICATIONS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS notifications (
-  id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  user_id               UUID REFERENCES users(id) ON DELETE CASCADE,
+  id                    TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  user_id               TEXT REFERENCES users(id) ON DELETE CASCADE,
   title                 TEXT NOT NULL,
   message               TEXT NOT NULL,
   type                  TEXT NOT NULL DEFAULT 'general',
-  related_incident_id   UUID REFERENCES incidents(id) ON DELETE SET NULL,
+  related_incident_id   TEXT REFERENCES incidents(id) ON DELETE SET NULL,
   read                  BOOLEAN NOT NULL DEFAULT false,
   created_at            TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -252,10 +252,10 @@ CREATE INDEX IF NOT EXISTS idx_notifications_read ON notifications(read);
 -- ACTIVITY LOGS
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS activity_logs (
-  id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  incident_id   UUID REFERENCES incidents(id) ON DELETE CASCADE,
+  id            TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  incident_id   TEXT REFERENCES incidents(id) ON DELETE CASCADE,
   action        activity_action NOT NULL,
-  actor_id      UUID REFERENCES users(id) ON DELETE SET NULL,
+  actor_id      TEXT REFERENCES users(id) ON DELETE SET NULL,
   details       JSONB DEFAULT '{}'::jsonb,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -268,9 +268,9 @@ CREATE INDEX IF NOT EXISTS idx_activity_logs_created_at ON activity_logs(created
 -- AI ANALYSES
 -- ----------------------------------------------------------------------------
 CREATE TABLE IF NOT EXISTS ai_analyses (
-  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  incident_id     UUID REFERENCES incidents(id) ON DELETE CASCADE,
-  report_id       UUID REFERENCES reports(id) ON DELETE CASCADE,
+  id              TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  incident_id     TEXT REFERENCES incidents(id) ON DELETE CASCADE,
+  report_id       TEXT REFERENCES reports(id) ON DELETE CASCADE,
   input_text      TEXT,
   raw_response    JSONB,
   parsed_output   JSONB,

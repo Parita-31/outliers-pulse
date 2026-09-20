@@ -10,9 +10,44 @@ async function create(req, res) {
 }
 
 async function approve(req, res) {
-  const { approved_by } = approveAssignmentSchema.parse(req.body ?? {});
-  const assignment = await assignmentService.approveAssignment(req.params.id, approved_by);
-  res.json({ success: true, data: assignment });
+  let targetId = req.params.id;
+  const { approved_by, incidentId, resourceId, incident_id, resource_id } = req.body ?? {};
+
+  const incId = incidentId || incident_id;
+  const resId = resourceId || resource_id;
+
+  let assignment = await assignmentModel.getAssignmentById(targetId).catch(() => null);
+
+  if (!assignment && incId && resId) {
+    assignment = await assignmentService.createAssignment(incId, resId);
+    targetId = assignment.id;
+  } else if (!assignment) {
+    const { query } = require('../config/db');
+    const existing = await query(
+      `SELECT * FROM assignments WHERE (incident_id = $1 OR resource_id = $2) AND status = 'PENDING_APPROVAL' ORDER BY created_at DESC LIMIT 1`,
+      [incId || null, resId || null]
+    );
+    if (existing.rows.length > 0) {
+      targetId = existing.rows[0].id;
+    } else if (incId && resId) {
+      assignment = await assignmentService.createAssignment(incId, resId);
+      targetId = assignment.id;
+    } else {
+      throw ApiError.notFound('Assignment not found');
+    }
+  }
+
+  const approvedAssignment = await assignmentService.approveAssignment(targetId, approved_by);
+  res.json({
+    success: true,
+    data: {
+      ...approvedAssignment,
+      assignmentId: approvedAssignment.id,
+      status: approvedAssignment.status,
+      dispatchStatus: 'DISPATCHED',
+      timestamp: new Date().toISOString(),
+    },
+  });
 }
 
 async function getOne(req, res) {

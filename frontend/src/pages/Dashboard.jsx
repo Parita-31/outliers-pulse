@@ -28,6 +28,8 @@ import {
   GitMerge
 } from 'lucide-react';
 
+import { incidentsApi } from '../services/api/incidentsApi';
+
 export default function Dashboard() {
   const { incidents, selectedIncident, selectIncident, mergeIncidents, dispatch: incidentDispatch } = useIncidents();
   const { 
@@ -46,7 +48,7 @@ export default function Dashboard() {
   const [mergeTargetIncident, setMergeTargetIncident] = useState(null);
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState(false);
 
-  const activeIncId = selectedIncident?.id || 'INC-102';
+  const activeIncId = selectedIncident?.id || incidents[0]?.id || 'INC-102';
   const activeRecs = recommendations[activeIncId] || [];
   const compromised = compromisedPlans[activeIncId];
 
@@ -57,31 +59,40 @@ export default function Dashboard() {
   }, [activeIncId]);
 
   // Demo Handlers
-  const handleSimulateFlood = () => {
-    selectIncident('INC-102');
+  const handleSimulateFlood = async () => {
+    const targetId = selectedIncident?.id || 'INC-102';
+    selectIncident(targetId);
+    await incidentsApi.analyze(targetId).catch(() => null);
     addTimelineEvent({
       type: 'SIMULATION',
       category: 'FLOOD_TRIGGER',
-      title: 'Flash Flood Triggered',
-      description: 'Incoming storm surge telemetry received for Sector 4B.'
+      title: 'Flash Flood Telemetry Ingested',
+      description: `Ingested live gauge data for incident #${targetId}.`
     });
   };
 
-  const handleEscalateCritical = () => {
+  const handleEscalateCritical = async () => {
+    const targetId = selectedIncident?.id || 'INC-102';
+    try {
+      await incidentsApi.update(targetId, { severity: 'CRITICAL', priority: 'P1' });
+    } catch (e) {
+      console.error(e);
+    }
     incidentDispatch({
       type: 'UPDATE_SEVERITY',
-      payload: { id: 'INC-102', severity: 'CRITICAL', priority: 'P1', score: 95 }
+      payload: { id: targetId, severity: 'CRITICAL', priority: 'P1', score: 95 }
     });
     addTimelineEvent({
       type: 'ESCALATION',
       category: 'SEVERITY_CHANGED',
-      title: 'Severity Escalated: #INC-102',
+      title: `Severity Escalated: #${targetId}`,
       description: 'Critical score escalated to 95. Immediate tactical dispatch required.'
     });
   };
 
-  const handleOpenMergeModal = (primary, targetId) => {
-    const targetInc = incidents.find((i) => i.id === targetId);
+  const handleOpenMergeModal = (primary, explicitTargetId) => {
+    const primaryId = primary?.id || activeIncId;
+    const targetInc = incidents.find((i) => i.id === explicitTargetId) || incidents.find((i) => i.id !== primaryId && i.status !== 'MERGED');
     if (targetInc) {
       setMergeTargetIncident(targetInc);
       setIsMergeModalOpen(true);
@@ -104,27 +115,30 @@ export default function Dashboard() {
       type: 'DISPATCH',
       category: 'RESOURCE_ASSIGNED',
       title: `Resource ${resourceId} Dispatched`,
-      description: `${resourceId} en route to #${incId}. ETA: 6 min.`
+      description: `${resourceId} en route to #${incId}.`
     });
   };
 
   const handleSimulateUnitFailure = async () => {
-    await simulateFailure('INC-102');
+    const targetId = selectedIncident?.id || 'INC-102';
+    await simulateFailure(targetId);
     addTimelineEvent({
       type: 'FAILURE',
       category: 'UNIT_BREAKDOWN',
-      title: 'CRITICAL: AMB-07 Failed En Route',
+      title: `CRITICAL: Resource Failure En Route (#${targetId})`,
       description: 'Mechanical breakdown detected. System generated dynamic recovery plan (+3m delay).'
     });
   };
 
   const handleApproveRecovery = async () => {
-    await approveRecovery('INC-102', 'AMB-12');
+    const targetId = selectedIncident?.id || 'INC-102';
+    const altResId = compromised?.alternativeRecommendation?.resourceId || 'AMB-12';
+    await approveRecovery(targetId, altResId);
     addTimelineEvent({
       type: 'RECOVERY',
       category: 'UNIT_REASSIGNED',
       title: 'Recovery Plan Approved',
-      description: 'AMB-12 rerouted and dispatched to #INC-102 (ETA: 9 min).'
+      description: `${altResId} rerouted and dispatched to #${targetId}.`
     });
   };
 

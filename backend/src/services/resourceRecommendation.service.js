@@ -55,7 +55,7 @@ function scoreResource({ incident, resource, neededResourceTypes = [] }) {
   }
 
   // 4. Workload (max 10) - lower is better
-  const workload = resource.workload || 0;
+  const workload = typeof resource.workload === 'number' ? resource.workload : (parseInt(resource.workload, 10) || 0);
   const workloadPoints = clamp(Math.round(10 * (1 - workload / 100)), 0, 10);
   score += workloadPoints;
   if (workload <= 30) reasons.push('Low workload');

@@ -1,0 +1,36 @@
+{
+  "name": "ai-incident-commander-backend",
+  "version": "1.0.0",
+  "description": "Backend for AI Incident Commander - Intelligent Emergency Response & Resource Coordination Platform",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "nodemon server.js",
+    "start": "node server.js",
+    "migrate": "node db/migrate.js",
+    "seed": "node db/seed.js",
+    "reset-db": "node db/migrate.js --reset && node db/seed.js",
+    "test:api": "node scripts/test-api.js",
+    "test:full": "node scripts/test-full-flow.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.12.0",
+    "socket.io": "^4.7.5",
+    "dotenv": "^16.4.5",
+    "cors": "^2.8.5",
+    "helmet": "^7.1.0",
+    "morgan": "^1.10.0",
+    "express-async-errors": "^3.1.1",
+    "zod": "^3.23.8",
+    "uuid": "^9.0.1",
+    "@google/generative-ai": "^0.21.0",
+    "node-fetch": "^2.7.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.4"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

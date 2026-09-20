@@ -87,5 +87,25 @@ ${inc.risks?.map((r) => `  * ${r}`).join('\n')}
       return { success: true, data: { briefingMarkdown: markdown } };
     }
     return apiClient.post(`/incidents/${id}/briefing`);
+  },
+
+  async update(id, data) {
+    if (USE_MOCK) {
+      await mockDelay(100);
+      const inc = mockIncidentsState.find((item) => item.id === id);
+      if (inc) Object.assign(inc, data);
+      return { success: true, data: inc };
+    }
+    return apiClient.patch(`/incidents/${id}`, data);
+  },
+
+  async create(data) {
+    if (USE_MOCK) {
+      await mockDelay(100);
+      mockIncidentsState.unshift(data);
+      return { success: true, data };
+    }
+    return apiClient.post('/incidents', data);
   }
 };
+

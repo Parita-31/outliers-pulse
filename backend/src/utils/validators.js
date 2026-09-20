@@ -108,6 +108,22 @@ const recoverSchema = z.object({
   approved_by: z.string().uuid().optional(),
 });
 
+const ALERT_TYPES = [
+  'CRITICAL_INCIDENT', 'SEVERITY_ESCALATION', 'RESOURCE_FAILURE',
+  'RESPONSE_DELAY', 'RESOURCE_SHORTAGE', 'UNRESOLVED_HIGH_PRIORITY',
+  'CASCADING_IMPACT',
+];
+
+const listAlertsQuerySchema = z.object({
+  acknowledged: z.enum(['true', 'false']).optional().transform((v) => (v === undefined ? undefined : v === 'true')),
+  type: z.enum(ALERT_TYPES).optional(),
+  incident_id: z.string().uuid().optional(),
+});
+
+const acknowledgeAlertSchema = z.object({
+  acknowledged_by: z.string().uuid().optional(),
+});
+
 module.exports = {
   INCIDENT_TYPES,
   INCIDENT_STATUSES,
@@ -116,6 +132,7 @@ module.exports = {
   REPORT_SOURCES,
   RESOURCE_TYPES,
   RESOURCE_STATUSES,
+  ALERT_TYPES,
   createIncidentSchema,
   updateIncidentSchema,
   listIncidentsQuerySchema,
@@ -127,4 +144,6 @@ module.exports = {
   approveAssignmentSchema,
   simulateResourceFailureSchema,
   recoverSchema,
+  listAlertsQuerySchema,
+  acknowledgeAlertSchema,
 };

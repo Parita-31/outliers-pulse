@@ -1,5 +1,46 @@
 const { query } = require('../config/db');
 
+function normalizeIncident(inc) {
+  if (!inc) return null;
+  const lat = inc.latitude !== undefined ? Number(inc.latitude) : 22.6916;
+  const lng = inc.longitude !== undefined ? Number(inc.longitude) : 72.8634;
+
+  let factors = [];
+  if (Array.isArray(inc.severity_factors)) {
+    factors = inc.severity_factors.map((f) => ({
+      name: f.factor || f.name,
+      weight: f.points !== undefined ? `+${f.points} pts` : f.weight || '+10 pts',
+      category: f.category || 'GENERAL',
+    }));
+  }
+
+  return {
+    ...inc,
+    peopleAtRisk: inc.people_at_risk ?? 0,
+    confidence: inc.confidence_score ? Number(inc.confidence_score) : 94,
+    lat,
+    lng,
+    location: inc.location || {
+      lat,
+      lng,
+      address: inc.address || inc.title,
+      sector: inc.sector || 'Nadiad Sector',
+    },
+    explainability: inc.explainability || {
+      score: inc.severity_score || 85,
+      severityLevel: inc.severity || 'HIGH',
+      factors,
+    },
+    evidence: inc.evidence || [],
+    risks: inc.risks || [],
+    reports: inc.reports || [],
+    currentResponse: inc.currentResponse || {
+      assignedResources: [],
+      status: inc.status || 'ACTIVE',
+    },
+  };
+}
+
 async function createIncident({
   title,
   type,
@@ -36,7 +77,7 @@ async function createIncident({
     ]
   );
 
-  return rows[0];
+  return normalizeIncident(rows[0]);
 }
 
 async function getIncidentById(id) {
@@ -45,8 +86,9 @@ async function getIncidentById(id) {
     [id]
   );
 
-  return rows[0] || null;
+  return normalizeIncident(rows[0]);
 }
+
 
 async function listIncidents({
   status,
@@ -121,7 +163,7 @@ async function listIncidents({
   );
 
   return {
-    items: rows,
+    items: rows.map(normalizeIncident),
     total: countRows[0].total,
     page,
     limit,
@@ -183,8 +225,9 @@ async function updateIncident(id, fields) {
     params
   );
 
-  return rows[0] || null;
+  return normalizeIncident(rows[0]);
 }
+
 
 async function listActiveIncidentsSince(sinceMinutes) {
   const { rows } = await query(

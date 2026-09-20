@@ -5,6 +5,7 @@ const aiAnalysisModel = require('../models/aiAnalysis.model');
 const severityService = require('./severity.service');
 const priorityService = require('./priority.service');
 const aiService = require('./ai.service');
+const alertTriggers = require('./alertTriggers.service');
 const { logActivity } = require('../models/activityLog.model');
 const { emitEvent } = require('../config/socket');
 
@@ -125,10 +126,18 @@ async function runPriorityScoring(incidentId) {
 
 /**
  * Convenience wrapper: reruns severity then priority (priority depends on
- * the freshly-computed severity), returning the final incident. This is what
- * report-ingestion and /analyze should call.
+ * the freshly-computed severity), evaluates alert-trigger conditions against
+ * the before/after state, and returns the final incident. This is what
+ * report-ingestion, /analyze, merge, assignment approval, and recovery all call.
  */
 async function runIncidentScoring(incidentId) {
+  const before = await incidentModel.getIncidentById(incidentId);
   await runSeverityScoring(incidentId);
-  return runPriorityScoring(incidentId);
+  const after = await runPriorityScoring(incidentId);
+
+  const neededResourceTypes = await getNeededResourceTypes(after);
+  const availableResourceCount = await resourceModel.countAvailableByTypes(neededResourceTypes);
+  await alertTriggers.evaluateAlerts({ beforeIncident: before, afterIncident: after, availableResourceCount });
+
+  return after;
 }

@@ -15,5 +15,6 @@ router.post('/:id/merge', controller.merge);
 router.get('/:id/recommendations', recommendationsController.getForIncident);
 router.post('/:id/simulate-resource-failure', controller.simulateFailure);
 router.post('/:id/recover', controller.recover);
+router.post('/:id/briefing', controller.getBriefing);
 
 module.exports = router;
