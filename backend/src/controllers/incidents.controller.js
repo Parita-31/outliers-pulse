@@ -1,6 +1,7 @@
 const incidentModel = require('../models/incident.model');
 const reportModel = require('../models/report.model');
 const aiAnalysisModel = require('../models/aiAnalysis.model');
+const resourceModel = require('../models/resource.model');
 const aiService = require('../services/ai.service');
 const { runIncidentScoring } = require('../services/incidentPipeline.service');
 const { mergeIncidents } = require('../services/merge.service');
@@ -128,9 +129,12 @@ async function simulateFailure(req, res) {
   const assignmentService = require('../services/assignment.service');
   let activeAssign = await assignmentModel.getActiveAssignmentForResource(resourceId);
   if (!activeAssign || activeAssign.incident_id !== incidentId) {
-    await resourceModel.updateResourceStatus(resourceId, 'AVAILABLE');
+    await resourceModel.updateResourceStatus(resourceId, { status: 'AVAILABLE' });
     const newAssign = await assignmentService.createAssignment(incidentId, resourceId);
-    await assignmentService.approveAssignment(newAssign.id, 'system_commander');
+    const { query } = require('../config/db');
+    const userRes = await query(`SELECT id FROM users WHERE role = 'commander' LIMIT 1`);
+    const commanderId = userRes.rows[0]?.id || null;
+    await assignmentService.approveAssignment(newAssign.id, commanderId);
   }
 
   const result = await simulateResourceFailure(incidentId, resourceId);
@@ -173,11 +177,22 @@ async function simulateFailure(req, res) {
 async function recover(req, res) {
   const incidentId = req.params.id;
   const newResourceId = req.body?.new_resource_id || req.body?.newResourceId || req.body?.assignedResourceId;
-  const assignmentId = req.body?.assignment_id || req.body?.assignmentId;
+  let assignmentId = req.body?.assignment_id || req.body?.assignmentId;
   const approvedBy = req.body?.approved_by || req.body?.approvedBy;
 
   if (!newResourceId) {
     throw ApiError.badRequest('new_resource_id is required');
+  }
+
+  if (!assignmentId) {
+    const { query } = require('../config/db');
+    const failedAssignRes = await query(
+      `SELECT id FROM assignments WHERE incident_id = $1 AND status = 'FAILED' ORDER BY created_at DESC LIMIT 1`,
+      [incidentId]
+    );
+    if (failedAssignRes.rows.length > 0) {
+      assignmentId = failedAssignRes.rows[0].id;
+    }
   }
 
   const result = await recoverAssignment(incidentId, assignmentId, newResourceId, approvedBy);

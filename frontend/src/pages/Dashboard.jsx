@@ -6,6 +6,7 @@ import EmergencyMap from '../components/map/EmergencyMap';
 import AICommandPanel from '../components/command/AICommandPanel';
 import DuplicateMergeModal from '../components/incidents/DuplicateMergeModal';
 import OperationalBriefingModal from '../components/incidents/OperationalBriefingModal';
+import EventNotificationModal from '../components/incidents/EventNotificationModal';
 import ToastContainer from '../components/alerts/ToastNotification';
 import AlertCenterDrawer from '../components/alerts/AlertCenterDrawer';
 import { useIncidents } from '../hooks/useIncidents';
@@ -47,6 +48,7 @@ export default function Dashboard() {
   const [isMergeModalOpen, setIsMergeModalOpen] = useState(false);
   const [mergeTargetIncident, setMergeTargetIncident] = useState(null);
   const [isBriefingModalOpen, setIsBriefingModalOpen] = useState(false);
+  const [eventModalState, setEventModalState] = useState({ isOpen: false, eventData: null });
 
   const activeIncId = selectedIncident?.id || incidents[0]?.id || 'INC-102';
   const activeRecs = recommendations[activeIncId] || [];
@@ -69,6 +71,26 @@ export default function Dashboard() {
       title: 'Flash Flood Telemetry Ingested',
       description: `Ingested live gauge data for incident #${targetId}.`
     });
+
+    setEventModalState({
+      isOpen: true,
+      eventData: {
+        type: 'FLOOD',
+        title: 'Flash Flood Telemetry Ingested',
+        subtitle: `Live river gauge & hydrometric sensor data ingested for incident #${targetId}. Sector 4B water levels rapidly rising.`,
+        incidentId: targetId,
+        details: [
+          { label: 'Hydrological Telemetry', value: 'Gauge #FL-402 measured +2.4m surge above flood stage. Water flow speed 4.2 knots.' },
+          { label: 'AI Threat Matrix', value: 'Dynamic map updated with flash flood hazard contours & inundated route boundaries.' },
+          { label: 'Civilian Impact', value: `${selectedIncident?.peopleAtRisk || 14} civilians currently stranded at risk near Sector 4B.` }
+        ],
+        metrics: [
+          { label: 'Water Surge', value: '+2.4 Meters' },
+          { label: 'Risk Score', value: '88 / 100' }
+        ],
+        actionLabel: 'UNDERSTOOD & DISMISS'
+      }
+    });
   };
 
   const handleEscalateCritical = async () => {
@@ -87,6 +109,26 @@ export default function Dashboard() {
       category: 'SEVERITY_CHANGED',
       title: `Severity Escalated: #${targetId}`,
       description: 'Critical score escalated to 95. Immediate tactical dispatch required.'
+    });
+
+    setEventModalState({
+      isOpen: true,
+      eventData: {
+        type: 'ESCALATE',
+        title: `Severity Escalated to CRITICAL (P1)`,
+        subtitle: `Incident #${targetId} severity manually upgraded to P1 Critical by Command Operator.`,
+        incidentId: targetId,
+        details: [
+          { label: 'Priority Escalation', value: 'Priority set to P1 (Highest Priority Emergency Response).' },
+          { label: 'AI Confidence Score', value: 'Explainability score boosted to 95/100 based on structural threat & life safety.' },
+          { label: 'Command Network Alert', value: 'Priority alert broadcasted to all sector dispatchers and ALS units.' }
+        ],
+        metrics: [
+          { label: 'Severity Level', value: 'CRITICAL (P1)' },
+          { label: 'AI Score', value: '95 / 100' }
+        ],
+        actionLabel: 'CONFIRM ESCALATION'
+      }
     });
   };
 
@@ -121,12 +163,36 @@ export default function Dashboard() {
 
   const handleSimulateUnitFailure = async () => {
     const targetId = selectedIncident?.id || 'INC-102';
-    await simulateFailure(targetId);
+    const failData = await simulateFailure(targetId);
     addTimelineEvent({
       type: 'FAILURE',
       category: 'UNIT_BREAKDOWN',
       title: `CRITICAL: Resource Failure En Route (#${targetId})`,
       description: 'Mechanical breakdown detected. System generated dynamic recovery plan (+3m delay).'
+    });
+
+    const failedName = failData?.failedResourceName || failData?.failed_resource?.name || 'AMB-07';
+    const altName = failData?.alternativeRecommendation?.resourceName || 'AMB-12';
+    const delay = failData?.alternativeRecommendation?.delayImpactMinutes || 3;
+
+    setEventModalState({
+      isOpen: true,
+      eventData: {
+        type: 'FAILURE',
+        title: `Resource Mechanical Failure (${failedName})`,
+        subtitle: `ALS Response Unit ${failedName} experienced engine stall en route to incident #${targetId}.`,
+        incidentId: targetId,
+        details: [
+          { label: 'Failed Resource', value: `${failedName} status set to UNAVAILABLE due to mechanical transmission breakdown.` },
+          { label: 'AI Dynamic Recovery Route', value: `System recalculated alternative backup response plan using unit ${altName}.` },
+          { label: 'Delay Impact', value: `+${delay} Minutes ETA delay impact. Commander reassignment banner activated.` }
+        ],
+        metrics: [
+          { label: 'Failed Unit', value: failedName },
+          { label: 'Backup Unit', value: `${altName} (ETA 9m)` }
+        ],
+        actionLabel: 'REVIEW RECOVERY PLAN'
+      }
     });
   };
 
@@ -311,6 +377,13 @@ export default function Dashboard() {
             ))}
           </div>
         }
+      />
+
+      {/* Event Notification Pop-up Modal */}
+      <EventNotificationModal
+        isOpen={eventModalState.isOpen}
+        onClose={() => setEventModalState({ isOpen: false, eventData: null })}
+        eventData={eventModalState.eventData}
       />
 
       {/* Duplicate / Merge Modal */}

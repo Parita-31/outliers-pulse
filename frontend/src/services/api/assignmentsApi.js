@@ -27,7 +27,7 @@ export const assignmentsApi = {
     return apiClient.post(`/assignments/${assignmentId}/approve`, payload);
   },
 
-  async recover(incidentId = 'INC-102', newResourceId = 'AMB-12') {
+  async recover(incidentId = 'INC-102', newResourceId = 'AMB-12', assignmentId = null) {
     if (USE_MOCK) {
       await mockDelay(200);
       return {
@@ -41,6 +41,6 @@ export const assignmentsApi = {
         }
       };
     }
-    return apiClient.post(`/incidents/${incidentId}/recover`, { newResourceId });
+    return apiClient.post(`/incidents/${incidentId}/recover`, { newResourceId, assignmentId });
   }
 };

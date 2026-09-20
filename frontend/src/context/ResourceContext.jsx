@@ -156,7 +156,8 @@ export function ResourceProvider({ children }) {
 
   const approveRecovery = async (incidentId = 'INC-102', newResourceId = 'AMB-12') => {
     try {
-      const res = await assignmentsApi.recover(incidentId, newResourceId);
+      const assignmentId = state.compromisedPlans[incidentId]?.compromised_assignment?.id || state.compromisedPlans[incidentId]?.alert?.metadata?.assignmentId;
+      const res = await assignmentsApi.recover(incidentId, newResourceId, assignmentId);
       if (res.success) {
         dispatch({
           type: 'CLEAR_COMPROMISED_PLAN',

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Header from '../components/layout/Header';
 import StatCard from '../components/common/StatCard';
 import { 
@@ -8,13 +8,16 @@ import {
   Activity, 
   ShieldAlert, 
   Layers,
-  ArrowUpRight
+  ArrowUpRight,
+  RotateCcw,
+  Radio
 } from 'lucide-react';
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid
 } from 'recharts';
 import { analyticsApi } from '../services/api/analyticsApi';
+import { socketService } from '../services/socket';
 
 const DEFAULT_TIMELINE = [
   { time: '00:00', critical: 1, high: 2, medium: 4 },
@@ -35,22 +38,55 @@ const DEFAULT_RESPONSE_TIMES = [
 
 export default function Analytics() {
   const [stats, setStats] = useState(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(new Date());
 
-  useEffect(() => {
-    let isMounted = true;
-    async function fetchStats() {
-      try {
-        const res = await analyticsApi.getStats();
-        if (isMounted && res.success) {
-          setStats(res.data);
-        }
-      } catch (err) {
-        console.error('Failed to load analytics:', err);
+  const fetchStats = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      const res = await analyticsApi.getStats();
+      if (res.success) {
+        setStats(res.data);
+        setLastUpdated(new Date());
       }
+    } catch (err) {
+      console.error('Failed to load analytics:', err);
+    } finally {
+      setIsRefreshing(false);
     }
-    fetchStats();
-    return () => { isMounted = false; };
   }, []);
+
+  // Initial load & Polling interval (every 4 seconds)
+  useEffect(() => {
+    fetchStats();
+    const interval = setInterval(fetchStats, 4000);
+    return () => clearInterval(interval);
+  }, [fetchStats]);
+
+  // Real-time socket subscriptions
+  useEffect(() => {
+    const handleUpdate = () => fetchStats();
+
+    socketService.on('incident:created', handleUpdate);
+    socketService.on('incident:updated', handleUpdate);
+    socketService.on('incident:severity_changed', handleUpdate);
+    socketService.on('resource:updated', handleUpdate);
+    socketService.on('resource:assigned', handleUpdate);
+    socketService.on('resource:failed', handleUpdate);
+    socketService.on('resource:reassigned', handleUpdate);
+    socketService.on('alert:created', handleUpdate);
+
+    return () => {
+      socketService.off('incident:created', handleUpdate);
+      socketService.off('incident:updated', handleUpdate);
+      socketService.off('incident:severity_changed', handleUpdate);
+      socketService.off('resource:updated', handleUpdate);
+      socketService.off('resource:assigned', handleUpdate);
+      socketService.off('resource:failed', handleUpdate);
+      socketService.off('resource:reassigned', handleUpdate);
+      socketService.off('alert:created', handleUpdate);
+    };
+  }, [fetchStats]);
 
   const totalIncidents = stats?.total_incidents ?? stats?.summary?.totalIncidents ?? 100;
   const criticalIncidents = stats?.critical_incidents ?? stats?.summary?.criticalIncidents ?? 14;
@@ -76,14 +112,30 @@ export default function Analytics() {
               <BarChart3 className="w-5 h-5 text-c2-accent" />
               OPERATIONAL PERFORMANCE & INCIDENT ANALYTICS
             </h1>
-            <p className="text-xs text-c2-text-muted font-mono">
-              Aggregated real-time metrics across 24h operational shift
+            <p className="text-xs text-c2-text-muted font-mono flex items-center gap-2">
+              <span>Aggregated real-time metrics across 24h operational shift</span>
+              <span className="text-[10px] text-c2-accent font-semibold flex items-center gap-1">
+                <Radio className="w-3 h-3 text-c2-low animate-ping" />
+                LIVE STREAMING
+              </span>
             </p>
           </div>
           <div className="flex items-center gap-2 font-mono text-xs text-c2-text-muted">
-            <span className="px-2.5 py-1 rounded bg-c2-card border border-c2-border font-medium shadow-sm">
-              Shift: 08:00 - 20:00
-            </span>
+            <div className="px-2.5 py-1 rounded bg-c2-card border border-c2-border font-medium shadow-sm flex items-center gap-1.5 text-[11px]">
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+              <span>REAL-TIME LIVE DATA</span>
+              <span className="text-c2-text-muted border-l border-c2-border pl-1.5">
+                {lastUpdated.toLocaleTimeString()}
+              </span>
+            </div>
+            <button
+              onClick={fetchStats}
+              disabled={isRefreshing}
+              className="p-1.5 rounded bg-c2-card hover:bg-c2-surface border border-c2-border text-c2-text transition"
+              title="Refresh Analytics Data"
+            >
+              <RotateCcw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin text-c2-accent' : ''}`} />
+            </button>
           </div>
         </div>
 
@@ -92,7 +144,7 @@ export default function Analytics() {
           <StatCard 
             label="Total Incidents (24h)" 
             value={String(totalIncidents)} 
-            subValue="+12% vs avg" 
+            subValue="Dynamic live feed count" 
             icon={Layers} 
             variant="default" 
           />
@@ -125,7 +177,7 @@ export default function Analytics() {
           <div className="p-4 rounded-lg bg-c2-card border border-c2-border shadow-sm">
             <h3 className="text-xs font-mono font-bold uppercase text-c2-text tracking-wider mb-4 flex items-center justify-between">
               <span>Incidents Volume Over Time</span>
-              <span className="text-[10px] text-c2-text-muted font-normal">24 Hour Window</span>
+              <span className="text-[10px] text-c2-accent font-mono font-semibold">● DYNAMIC FEED</span>
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -158,7 +210,7 @@ export default function Analytics() {
           <div className="p-4 rounded-lg bg-c2-card border border-c2-border shadow-sm">
             <h3 className="text-xs font-mono font-bold uppercase text-c2-text tracking-wider mb-4 flex items-center justify-between">
               <span>Avg Dispatch & Response Time (Minutes)</span>
-              <span className="text-[10px] text-c2-text-muted font-normal">Target vs Actual</span>
+              <span className="text-[10px] text-c2-accent font-mono font-semibold">● LIVE METRICS</span>
             </h3>
             <div className="h-64">
               <ResponsiveContainer width="100%" height="100%">
@@ -181,3 +233,4 @@ export default function Analytics() {
     </div>
   );
 }
+

@@ -61,13 +61,13 @@ async function getAnalyticsSnapshot() {
     `),
     query(`
       SELECT
-        r.type AS unit,
+        r.type::text AS unit,
         COALESCE(ROUND(AVG(a.eta)::numeric, 1), 6.0)::float AS actual,
         CASE 
-          WHEN r.type IN ('ambulance', 'AMBULANCE') THEN 8.0
-          WHEN r.type IN ('fire_team', 'FIRE_ENGINE') THEN 7.0
-          WHEN r.type IN ('rescue_team', 'RESCUE_BOAT') THEN 12.0
-          WHEN r.type IN ('police_unit', 'POLICE') THEN 6.0
+          WHEN r.type::text IN ('ambulance', 'AMBULANCE') THEN 8.0
+          WHEN r.type::text IN ('fire_team', 'FIRE_ENGINE') THEN 7.0
+          WHEN r.type::text IN ('rescue_team', 'RESCUE_BOAT') THEN 12.0
+          WHEN r.type::text IN ('police_unit', 'POLICE') THEN 6.0
           ELSE 10.0
         END AS target
       FROM resources r
