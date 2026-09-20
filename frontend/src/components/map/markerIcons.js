@@ -26,9 +26,6 @@ export function createIncidentIcon(incident, isSelected = false) {
       <div class="relative w-8 h-8 rounded-full flex items-center justify-center shadow-lg" style="background: ${bgColor}; border: 2.5px solid ${borderColor};">
         ${iconSvg}
       </div>
-      <div class="absolute -top-6 whitespace-nowrap bg-slate-900/90 text-white font-mono font-bold text-[9px] px-1.5 py-0.5 rounded shadow pointer-events-none">
-        #${incident.id}
-      </div>
     </div>
   `;
 

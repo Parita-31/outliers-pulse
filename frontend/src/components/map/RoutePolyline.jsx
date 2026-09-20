@@ -29,7 +29,7 @@ export default function RoutePolyline({
     >
       <Tooltip sticky className="c2-route-tooltip">
         <div className="font-mono text-[10px] text-c2-text font-bold">
-          {label}: {fromResource.name || fromResource.id} ➔ #{toIncident.id}
+          {label}: {fromResource.name || 'Response Unit'} ➔ {toIncident.title || 'Target Incident'}
         </div>
       </Tooltip>
     </Polyline>

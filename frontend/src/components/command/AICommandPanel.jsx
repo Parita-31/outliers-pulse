@@ -19,6 +19,15 @@ import {
 } from 'lucide-react';
 import { MOCK_DUPLICATE_CANDIDATES } from '../../mock/mockData';
 
+function formatDisplayId(id) {
+  if (!id) return '';
+  if (typeof id === 'string' && id.length > 12) {
+    const clean = id.replace(/-/g, '').toUpperCase();
+    return `INC-${clean.slice(-4)}`;
+  }
+  return id;
+}
+
 export default function AICommandPanel({
   incident,
   recommendations = [],
@@ -63,7 +72,7 @@ export default function AICommandPanel({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-1.5">
               <PriorityBadge priority={incident.priority} />
-              <span className="font-bold text-xs text-c2-text">#{incident.id}</span>
+              <span className="font-bold text-xs text-c2-text">#{formatDisplayId(incident.id)}</span>
             </div>
             <SeverityBadge severity={incident.severity} pulse={incident.severity === 'CRITICAL'} />
           </div>

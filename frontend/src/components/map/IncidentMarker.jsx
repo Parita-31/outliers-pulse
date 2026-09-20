@@ -5,6 +5,15 @@ import SeverityBadge from '../common/SeverityBadge';
 import PriorityBadge from '../common/PriorityBadge';
 import { MapPin, Users, AlertTriangle } from 'lucide-react';
 
+function formatDisplayId(id) {
+  if (!id) return '';
+  if (typeof id === 'string' && id.length > 12) {
+    const clean = id.replace(/-/g, '').toUpperCase();
+    return `INC-${clean.slice(-4)}`;
+  }
+  return id;
+}
+
 export default function IncidentMarker({ incident, isSelected, onSelect }) {
   if (!incident?.location?.lat || !incident?.location?.lng) return null;
 
@@ -23,7 +32,7 @@ export default function IncidentMarker({ incident, isSelected, onSelect }) {
           <div className="flex items-center justify-between mb-1.5 border-b border-c2-border pb-1.5">
             <div className="flex items-center gap-1.5">
               <PriorityBadge priority={incident.priority} />
-              <span className="font-mono text-xs font-bold">#{incident.id}</span>
+              <span className="font-mono text-xs font-bold">#{formatDisplayId(incident.id)}</span>
             </div>
             <SeverityBadge severity={incident.severity} size="sm" />
           </div>

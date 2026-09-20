@@ -31,6 +31,15 @@ import {
 
 import { incidentsApi } from '../services/api/incidentsApi';
 
+function formatDisplayId(id) {
+  if (!id) return '';
+  if (typeof id === 'string' && id.length > 12) {
+    const clean = id.replace(/-/g, '').toUpperCase();
+    return `INC-${clean.slice(-4)}`;
+  }
+  return id;
+}
+
 export default function Dashboard() {
   const { incidents, selectedIncident, selectIncident, mergeIncidents, dispatch: incidentDispatch } = useIncidents();
   const { 
@@ -297,7 +306,7 @@ export default function Dashboard() {
                     <div className="flex items-center justify-between mb-1.5">
                       <div className="flex items-center gap-1.5">
                         <PriorityBadge priority={inc.priority} />
-                        <span className="font-mono text-xs font-bold text-c2-text">#{inc.id}</span>
+                        <span className="font-mono text-xs font-bold text-c2-text">#{formatDisplayId(inc.id)}</span>
                       </div>
                       <SeverityBadge severity={inc.severity} pulse={isCrit} />
                     </div>
