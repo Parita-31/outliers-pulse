@@ -187,6 +187,15 @@ Severity Score: 91
 └── backend/                 # Express API, AI processing, engines, PostgreSQL
 ```
 
+## 📸 Screenshots
+
+### Command Dashboard
+![Command Dashboard](./screenshots/dashboard.png)
+
+### Response Plan Compromised
+![Recovery Panel](./screenshots/recovery-panel.png)
+
+
 ---
 
 ## 🚀 Getting Started
